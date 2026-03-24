@@ -14,7 +14,7 @@ def validar_imagen(ruta):
         # Intentar abrir la imagen
         with Image.open(ruta) as img:
             # Comprobar tamaño exacto
-            return img.size == (5000, 5000)
+            return img.size == (20000, 20000)
     except Exception:
         # Si no se puede abrir como imagen, también es inválida
         return False
@@ -25,6 +25,6 @@ def generarImagenJulia(x, y):
     if validar_imagen(ruta):
         return Image.open(ruta), ruta
     else:
-        img = julia(5, 100, -2, 2, -2, 2, x, y)
+        img = julia(20, 100, -2, 2, -2, 2, x, y)
         img.save(ruta)
         return img, ruta

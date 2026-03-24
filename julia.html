@@ -25,7 +25,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   #zoom-bar { position: absolute; bottom: 12px; left: 12px; font-size: 0.7rem; color: var(--dim); }
   #zoom-bar span { color: var(--accent2); }
-  .sidebar { width: 220px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 16px; font-size: 0.72rem; overflow: hidden; }
+  .sidebar { width: 220px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 16px; font-size: 0.72rem; overflow-y: auto; }
   .sidebar h2 { font-family: 'Orbitron', monospace; font-size: 0.65rem; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
   .stat { display: flex; flex-direction: column; gap: 3px; }
   .stat label { color: var(--dim); font-size: 0.65rem; }
@@ -71,14 +71,6 @@
       <input type="text" id="input-cy" value="0" />
     </div>
     <button onclick="generateJulia()">▶ Generate</button>
-
-    <h2>View</h2>
-    <div class="stat"><label>CENTER X</label><value id="s-cx">0</value></div>
-    <div class="stat"><label>CENTER Y</label><value id="s-cy">0</value></div>
-    <div class="stat"><label>SIZE</label><value id="s-dst">4</value></div>
-
-    <h2>Controls</h2>
-    <div class="hint"><b>Scroll</b> — zoom<br><b>Drag</b> — pan</div>
     <button onclick="resetView()">↺ Reset View</button>
     <button onclick="location.href='./'">← Mandelbrot</button>
 
@@ -135,9 +127,6 @@
   }
 
   function updateStats() {
-    document.getElementById('s-cx').textContent    = view.cx.toFixed(6);
-    document.getElementById('s-cy').textContent    = view.cy.toFixed(6);
-    document.getElementById('s-dst').textContent   = view.dst.toExponential(3);
     document.getElementById('zoom-val').textContent = (4 / view.dst).toFixed(2) + '×';
   }
 

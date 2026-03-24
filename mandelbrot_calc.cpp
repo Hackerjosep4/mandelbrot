@@ -3,6 +3,12 @@
 #include <cstdint>
 #include <vector>
 
+#ifdef _WIN32
+  #define EXPORT extern "C" __declspec(dllexport)
+#else
+  #define EXPORT extern "C"
+#endif
+
 int mandelbrot_iter(double a, double b, int max_iter)
 {
     std::complex<double> c(a, b);
@@ -16,7 +22,7 @@ int mandelbrot_iter(double a, double b, int max_iter)
     return n;
 }
 
-extern "C" __declspec(dllexport)
+EXPORT
 int* mandelbrot_grid(int amplada, int alcada, int max_iter, double x_min, double x_max, double y_min, double y_max)
 {
     int* grid = new int[alcada * amplada];
@@ -33,10 +39,10 @@ int* mandelbrot_grid(int amplada, int alcada, int max_iter, double x_min, double
     return grid;
 }
 
-int julia_iter(double a, double b, double c, double d, int max_iter)
+int julia_iter(double a, double b, double x, double y, int max_iter)
 {
     std::complex<double> c(a, b);
-    std::complex<double> z(c, d);
+    std::complex<double> z(x, y);
 
     int n = 0;
     while (std::abs(z) <= 2.0 && n < max_iter) {
@@ -46,7 +52,7 @@ int julia_iter(double a, double b, double c, double d, int max_iter)
     return n;
 }
 
-extern "C" __declspec(dllexport)
+EXPORT
 int* julia_grid(int amplada, int alcada, int max_iter, double x_min, double x_max, double y_min, double y_max, double px, double py)
 {
     int* grid = new int[alcada * amplada];
@@ -63,7 +69,7 @@ int* julia_grid(int amplada, int alcada, int max_iter, double x_min, double x_ma
     return grid;
 }
 
-extern "C" __declspec(dllexport)
+EXPORT
 void free_grid(int* grid) {
     delete[] grid;
 }

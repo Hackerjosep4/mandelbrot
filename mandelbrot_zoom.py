@@ -58,7 +58,7 @@ def generarImagen(inx, iny, dst):
 
 def generarImagenSector(x, y, n):
     cell = 4 / (2 ** n)
-    ruta = f"img/{n}/mbz_{x}_{y}.png"
+    ruta = f"img/{n}/mbz_{n}_{x}_{y}.png"
     os.makedirs(f"img/{n}", exist_ok=True)
     if validar_imagen(ruta):
         return Image.open(ruta), ruta

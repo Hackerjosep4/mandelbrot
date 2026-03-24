@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandelbrot Level Viewer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --border: #1e1e2e;
+    --accent: #00ffcc; --accent2: #ff3366; --text: #c8c8d8; --dim: #444466;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  header h1 { font-family: 'Orbitron', monospace; font-size: 1rem; color: var(--accent); letter-spacing: 4px; text-transform: uppercase; }
+  .controls { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; flex-wrap: wrap; }
+  .controls label { color: var(--dim); font-size: 0.72rem; letter-spacing: 2px; }
+  .controls input[type=number] {
+    background: var(--bg); border: 1px solid var(--accent); color: var(--accent);
+    font-family: 'Share Tech Mono', monospace; font-size: 0.9rem;
+    padding: 6px 10px; width: 70px; text-align: center;
+  }
+  .controls input[type=number]:focus { outline: none; }
+  button {
+    background: transparent; border: 1px solid var(--accent); color: var(--accent);
+    font-family: 'Share Tech Mono', monospace; font-size: 0.72rem;
+    padding: 8px 16px; cursor: pointer; letter-spacing: 2px;
+    transition: background 0.2s, color 0.2s; text-transform: uppercase;
+  }
+  button:hover { background: var(--accent); color: var(--bg); }
+  button:disabled { border-color: var(--dim); color: var(--dim); cursor: not-allowed; }
+  button:disabled:hover { background: transparent; color: var(--dim); }
+  .info { font-size: 0.7rem; color: var(--dim); }
+  .info span { color: var(--accent2); }
+  #status { margin-left: auto; font-size: 0.7rem; color: var(--dim); }
+  #status span { color: var(--accent2); }
+  .canvas-wrap { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+  canvas { image-rendering: pixelated; display: block; border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Level Viewer</h1>
+</header>
+<div class="controls">
+  <label>LEVEL N</label>
+  <input type="number" id="lvl-input" value="1" min="1" max="20">
+  <button id="load-btn" onclick="loadLevel()">▶ Load</button>
+  <button onclick="location.href='./'">← Return</button>
+  <div class="info">existing files: <span id="file-count">—</span></div>
+  <div id="status">—</div>
+</div>
+<div class="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+  const API      = 'https://mb.hackerblock.sytes.net/mbapi';
+  const MAX_CONC = 16;
+
+  let currentN  = null;
+  let abortFlag = false;
+
+  // Carregar el compte de fitxers
+  fetch('./count.php').then(r => r.json()).then(data => {
+    document.getElementById('file-count').textContent =
+      (data['total-mb'] ?? 0).toLocaleString('ca-ES');
+  }).catch(() => {});
+
+  function getCanvasSize() {
+    const wrap = document.querySelector('.canvas-wrap');
+    return Math.min(wrap.clientWidth, wrap.clientHeight);
+  }
+
+  function setStatus(html) {
+    document.getElementById('status').innerHTML = html;
+  }
+
+  async function loadLevel() {
+    const n = parseInt(document.getElementById('lvl-input').value);
+    if (isNaN(n) || n < 1) return;
+
+    // Atura càrrega anterior
+    abortFlag = true;
+    await new Promise(r => setTimeout(r, 50));
+    abortFlag = false;
+    currentN = n;
+
+    const btn = document.getElementById('load-btn');
+    btn.disabled = true;
+
+    const total  = Math.pow(2, n);
+    const sizePx = getCanvasSize();
+    const tilePx = sizePx / total;
+
+    const canvas = document.getElementById('canvas');
+    canvas.width  = sizePx;
+    canvas.height = sizePx;
+    const ctx = canvas.getContext('2d');
+
+    // Fons fosc
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(0, 0, sizePx, sizePx);
+
+    setStatus('fetching list…');
+
+    // 1. Demanar al servidor quins tiles existeixen
+    let tiles;
+    try {
+      const r = await fetch(`${API}/level/${n}`);
+      if (!r.ok) throw new Error();
+      const data = await r.json();
+      tiles = data.tiles;
+    } catch {
+      setStatus('<span>error fetching level</span>');
+      btn.disabled = false;
+      return;
+    }
+
+    if (abortFlag || currentN !== n) { btn.disabled = false; return; }
+
+    const total2 = total * total;
+    setStatus(`found: <span>${tiles.length}/${total2}</span>`);
+
+    // 2. Pintar en verd tots els tiles que existeixen
+    ctx.fillStyle = '#00dd77';
+    for (const { x, y } of tiles) {
+      const canvasX = x * tilePx;
+      const canvasY = (total - 1 - y) * tilePx;
+      ctx.fillRect(canvasX, canvasY, tilePx, tilePx);
+    }
+
+    // Línia de quadrícula lleugera per veure els buits
+    ctx.strokeStyle = '#1e1e3a';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= total; i++) {
+      ctx.beginPath(); ctx.moveTo(i * tilePx, 0); ctx.lineTo(i * tilePx, sizePx); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * tilePx); ctx.lineTo(sizePx, i * tilePx); ctx.stroke();
+    }
+
+    if (abortFlag || currentN !== n) { btn.disabled = false; return; }
+
+    // 3. Carregar les imatges en grups i posar-les per sobre el verd
+    let loaded = 0;
+    for (let i = 0; i < tiles.length; i += MAX_CONC) {
+      if (abortFlag || currentN !== n) break;
+
+      const chunk = tiles.slice(i, i + MAX_CONC);
+      await Promise.all(chunk.map(({ x, y }) => new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+          const canvasX = x * tilePx;
+          const canvasY = (total - 1 - y) * tilePx;
+          ctx.drawImage(img, canvasX, canvasY, tilePx, tilePx);
+          loaded++;
+          setStatus(`found: <span>${tiles.length}/${total2}</span> &nbsp; loaded: <span>${loaded}/${tiles.length}</span>`);
+          resolve();
+        };
+        img.onerror = resolve;
+        img.src = `./img/${n}/mbz_${n}_${x}_${y}.png`;
+      })));
+    }
+
+    const cancelled = abortFlag || currentN !== n;
+    setStatus(`found: <span>${tiles.length}/${total2}</span> &nbsp; loaded: <span>${loaded}/${tiles.length}</span>${cancelled ? ' &nbsp; <span style="color:var(--dim)">cancelled</span>' : ' &nbsp; ✓'}`);
+    btn.disabled = false;
+  }
+</script>
+</body>
+</html>

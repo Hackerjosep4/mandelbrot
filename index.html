@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mandelbrot Explorer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --border: #1e1e2e;
+    --accent: #00ffcc; --accent2: #ff3366; --text: #c8c8d8; --dim: #444466;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  header h1 { font-family: 'Orbitron', monospace; font-size: 1rem; color: var(--accent); letter-spacing: 4px; text-transform: uppercase; }
+  #coords { font-size: 0.72rem; color: var(--dim); letter-spacing: 1px; }
+  #coords span { color: var(--accent); }
+  .main { flex: 1; display: flex; overflow: hidden; }
+  #canvas-container { flex: 1; position: relative; overflow: hidden; cursor: crosshair; background: #000; }
+  canvas { position: absolute; top: 0; left: 0; image-rendering: pixelated; }
+  #loading-overlay { position: absolute; bottom: 12px; right: 12px; display: flex; align-items: center; gap: 8px; font-size: 0.7rem; color: var(--accent); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  #loading-overlay.active { opacity: 1; }
+  .spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #zoom-bar { position: absolute; bottom: 12px; left: 12px; font-size: 0.7rem; color: var(--dim); }
+  #zoom-bar span { color: var(--accent2); }
+  .sidebar { width: 200px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 16px; font-size: 0.72rem; }
+  .sidebar h2 { font-family: 'Orbitron', monospace; font-size: 0.65rem; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .stat { display: flex; flex-direction: column; gap: 3px; }
+  .stat label { color: var(--dim); font-size: 0.65rem; }
+  .stat value { color: var(--accent); word-break: break-all; }
+  button { background: transparent; border: 1px solid var(--accent); color: var(--accent); font-family: 'Share Tech Mono', monospace; font-size: 0.72rem; padding: 8px 12px; cursor: pointer; letter-spacing: 2px; transition: background 0.2s, color 0.2s; text-transform: uppercase; width: 100%; }
+  button:hover { background: var(--accent); color: var(--bg); }
+  .hint { font-size: 0.65rem; color: var(--dim); line-height: 1.6; }
+  .hint b { color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mandelbrot Explorer</h1>
+  <div id="coords">x: <span id="hx">—</span> &nbsp; y: <span id="hy">—</span></div>
+</header>
+<div class="main">
+  <div id="canvas-container">
+    <canvas id="canvas"></canvas>
+    <div id="loading-overlay"><div class="spinner"></div> RENDERING…</div>
+    <div id="zoom-bar">zoom: <span id="zoom-val">1×</span></div>
+  </div>
+  <div class="sidebar">
+    <h2>View</h2>
+    <div class="stat"><label>CENTER X</label><value id="s-cx">-0.5</value></div>
+    <div class="stat"><label>CENTER Y</label><value id="s-cy">0</value></div>
+    <div class="stat"><label>SIZE</label><value id="s-dst">3</value></div>
+    <div class="stat"><label>LEVEL N</label><value id="s-n">—</value></div>
+    <h2>Controls</h2>
+    <div class="hint"><b>Scroll</b> — zoom<br><b>Drag</b> — pan</div>
+    <h2>Quality</h2>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button onclick="changeQuality(-1)" style="width:36px;padding:6px;">−</button>
+      <span style="flex:1;text-align:center;color:var(--accent);font-size:1rem;" id="q-val">0</span>
+      <button onclick="changeQuality(1)" style="width:36px;padding:6px;">+</button>
+    </div>
+    <button onclick="resetView()">↺ Reset</button>
+    <button onclick="location.href='./lvl.html'">⊞ View Level</button>
+    <button onclick="location.href='./julia.html'">✦ Julia Sets</button>
+  </div>
+</div>
+<script>
+  const API     = 'https://mb.hackerblock.sytes.net/mbapi';
+  const DST_MAX = 3.0;
+  const PADDING = 2;
+  const PREFETCH_DELAY = 100;
+
+  let quality = 0;
+
+  const canvas = document.getElementById('canvas');
+  const ctx    = canvas.getContext('2d');
+  let view = { cx: -0.5, cy: 0, dst: 3 };
+  const tileCache = {};
+  let pendingVisible = 0;
+  let prefetchTimer = null;
+
+  function resizeCanvas() {
+    const cont = document.getElementById('canvas-container');
+    canvas.width  = cont.clientWidth;
+    canvas.height = cont.clientHeight;
+    render();
+  }
+
+  function getN(dst)  { return Math.ceil(Math.log2(4 / dst)) + quality; }
+  function getCell(n) { return 4 / Math.pow(2, n); }
+
+  function getTiles(extraPad = 0) {
+    const n    = getN(view.dst);
+    const cell = getCell(n);
+    const pad  = (extraPad * cell);
+    const txMin = Math.floor((view.cx - view.dst / 2 - pad + 2) / cell);
+    const txMax = Math.floor((view.cx + view.dst / 2 + pad + 2) / cell);
+    const tyMin = Math.floor((view.cy - view.dst / 2 - pad + 2) / cell);
+    const tyMax = Math.floor((view.cy + view.dst / 2 + pad + 2) / cell);
+    const tiles = [];
+    for (let ty = tyMin; ty <= tyMax; ty++)
+      for (let tx = txMin; tx <= txMax; tx++)
+        tiles.push({ n, x: tx, y: ty });
+    return tiles;
+  }
+
+  function getPrefetchTiles() {
+    const tiles = [];
+    const n = getN(view.dst);
+
+    for (const nIn of [n + 1]) {
+      const cellIn = getCell(nIn);
+      const tixMin = Math.floor((view.cx - view.dst / 2 + 2) / cellIn);
+      const tixMax = Math.floor((view.cx + view.dst / 2 + 2) / cellIn);
+      const tiyMin = Math.floor((view.cy - view.dst / 2 + 2) / cellIn);
+      const tiyMax = Math.floor((view.cy + view.dst / 2 + 2) / cellIn);
+      for (let ty = tiyMin; ty <= tiyMax; ty++)
+        for (let tx = tixMin; tx <= tixMax; tx++)
+          tiles.push({ n: nIn, x: tx, y: ty });
+    }
+
+    if (n > 1) {
+      const nOut    = n - 1;
+      const cellOut = getCell(nOut);
+      const toxMin  = Math.floor((view.cx - view.dst / 2 + 2) / cellOut);
+      const toxMax  = Math.floor((view.cx + view.dst / 2 + 2) / cellOut);
+      const toyMin  = Math.floor((view.cy - view.dst / 2 + 2) / cellOut);
+      const toyMax  = Math.floor((view.cy + view.dst / 2 + 2) / cellOut);
+      for (let ty = toyMin; ty <= toyMax; ty++)
+        for (let tx = toxMin; tx <= toxMax; tx++)
+          tiles.push({ n: nOut, x: tx, y: ty });
+    }
+
+    return tiles;
+  }
+
+  function loadTile(n, x, y, isVisible = false) {
+    const key = `${n}_${x}_${y}`;
+    if (tileCache[key]) return tileCache[key];
+
+    const entry = { status: 'loading', img: null };
+    tileCache[key] = entry;
+
+    if (isVisible) { pendingVisible++; updateLoadingIndicator(); }
+
+    fetch(`${API}/tile/${n}/${x}/${y}`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(() => {
+        const img = new Image();
+        img.onload = () => {
+          entry.img = img;
+          entry.status = 'loaded';
+          if (isVisible) { pendingVisible = Math.max(0, pendingVisible - 1); updateLoadingIndicator(); }
+          render();
+        };
+        img.onerror = () => {
+          entry.status = 'error';
+          if (isVisible) { pendingVisible = Math.max(0, pendingVisible - 1); updateLoadingIndicator(); }
+        };
+        img.src = `./img/${n}/mbz_${n}_${x}_${y}.png`;
+      })
+      .catch(() => {
+        entry.status = 'error';
+        if (isVisible) { pendingVisible = Math.max(0, pendingVisible - 1); updateLoadingIndicator(); }
+      });
+
+    return entry;
+  }
+
+  function updateLoadingIndicator() {
+    document.getElementById('loading-overlay').classList.toggle('active', pendingVisible > 0);
+  }
+
+  const MAX_PREFETCH = 8;
+  function schedulePrefetch() {
+    clearTimeout(prefetchTimer);
+    prefetchTimer = setTimeout(() => {
+      const toLoad = [
+        ...getTiles(PADDING),
+        ...getPrefetchTiles()
+      ].filter(({ n, x, y }) => {
+        const key = `${n}_${x}_${y}`;
+        return !tileCache[key];
+      }).slice(0, MAX_PREFETCH);
+
+      toLoad.forEach(({ n, x, y }) => loadTile(n, x, y, false));
+    }, PREFETCH_DELAY);
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const n     = getN(view.dst);
+    const cell  = getCell(n);
+    const scale = Math.min(canvas.width, canvas.height) / view.dst;
+    const pcx   = canvas.width / 2;
+    const pcy   = canvas.height / 2;
+
+    for (const { n: tn, x, y } of getTiles(1)) {
+      const entry = loadTile(tn, x, y, true);
+      const px    = pcx + (x * cell - 2 - view.cx) * scale;
+      const py    = pcy - ((y + 1) * cell - 2 - view.cy) * scale;
+      const pSize = cell * scale;
+
+      if (entry.status === 'loaded') {
+        ctx.drawImage(entry.img, px, py, pSize, pSize);
+      } else {
+        ctx.fillStyle   = '#0d0d1a';
+        ctx.fillRect(px, py, pSize, pSize);
+        ctx.strokeStyle = '#1e1e3a';
+        ctx.lineWidth   = 1;
+        ctx.strokeRect(px, py, pSize, pSize);
+      }
+    }
+
+    document.getElementById('s-cx').textContent    = view.cx.toFixed(8);
+    document.getElementById('s-cy').textContent    = view.cy.toFixed(8);
+    document.getElementById('s-dst').textContent   = view.dst.toExponential(3);
+    document.getElementById('s-n').textContent     = n;
+    document.getElementById('zoom-val').textContent = (3 / view.dst).toFixed(2) + '×';
+  }
+
+  document.getElementById('canvas-container').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 1.3 : 0.77;
+    const newDst = view.dst * factor;
+    if (newDst > DST_MAX) return;
+
+    const rect  = canvas.getBoundingClientRect();
+    const scale = Math.min(canvas.width, canvas.height) / view.dst;
+    const mathX = view.cx + (e.clientX - rect.left  - canvas.width  / 2) / scale;
+    const mathY = view.cy - (e.clientY - rect.top   - canvas.height / 2) / scale;
+    view.cx  = mathX + (view.cx - mathX) * factor;
+    view.cy  = mathY + (view.cy - mathY) * factor;
+    view.dst = newDst;
+    render();
+    schedulePrefetch();
+  }, { passive: false });
+
+  let drag = null;
+  const cont = document.getElementById('canvas-container');
+  cont.addEventListener('mousedown', (e) => {
+    drag = { startX: e.clientX, startY: e.clientY, cx: view.cx, cy: view.cy };
+  });
+  cont.addEventListener('mousemove', (e) => {
+    const rect  = canvas.getBoundingClientRect();
+    const scale = Math.min(canvas.width, canvas.height) / view.dst;
+    document.getElementById('hx').textContent = (view.cx + (e.clientX - rect.left  - canvas.width  / 2) / scale).toFixed(6);
+    document.getElementById('hy').textContent = (view.cy - (e.clientY - rect.top   - canvas.height / 2) / scale).toFixed(6);
+    if (!drag) return;
+    view.cx = drag.cx - (e.clientX - drag.startX) / scale;
+    view.cy = drag.cy + (e.clientY - drag.startY) / scale;
+    render();
+    schedulePrefetch();
+  });
+  cont.addEventListener('mouseup',    () => { drag = null; });
+  cont.addEventListener('mouseleave', () => { drag = null; });
+
+  function changeQuality(delta) {
+    quality = Math.max(0, Math.min(4, quality + delta));
+    document.getElementById('q-val').textContent = quality;
+    render();
+    schedulePrefetch();
+  }
+
+  function resetView() { view = { cx: -0.5, cy: 0, dst: 3 }; render(); schedulePrefetch(); }
+
+  async function preloadLevels() {
+    for (let n = 1; n <= 4; n++) {
+      const cell = getCell(n);
+      const maxCoord = Math.pow(2, n);
+      const batch = [];
+      for (let y = 0; y < maxCoord; y++)
+        for (let x = 0; x < maxCoord; x++)
+          batch.push({ n, x, y });
+
+      for (let i = 0; i < batch.length; i += 4) {
+        const chunk = batch.slice(i, i + 4);
+        await Promise.all(chunk.map(({ n, x, y }) =>
+          new Promise(resolve => {
+            const entry = loadTile(n, x, y, false);
+            if (entry.status === 'loaded') { resolve(); return; }
+            const orig = entry;
+            const check = setInterval(() => {
+              if (orig.status !== 'loading') { clearInterval(check); resolve(); }
+            }, 100);
+          })
+        ));
+      }
+    }
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  schedulePrefetch();
+  preloadLevels();
+</script>
+</body>
+</html>

@@ -28,6 +28,8 @@ def get_julia(x, y):
 @app.route('/julias')
 def get_julias():
     julias = []
+    if not os.path.exists("img/julia"):
+        return jsonify({"julias": julias})
     for f in os.listdir("img/julia"):
         if not f.endswith(".png"):
             continue

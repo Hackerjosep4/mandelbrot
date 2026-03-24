@@ -4,7 +4,7 @@ from mandelbrot import julia
 
 
 
-os.makedirs("img/julia", exist_ok=True)
+
 
 def validar_imagen(ruta):
     # Comprobar si el archivo existe
@@ -21,6 +21,7 @@ def validar_imagen(ruta):
 
 def generarImagenJulia(x, y):
     ruta = f"img/julia/jl_{x}_{y}.png"
+    os.makedirs("img/julia", exist_ok=True)
     if validar_imagen(ruta):
         return Image.open(ruta), ruta
     else:

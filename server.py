@@ -17,26 +17,30 @@ def get_tile(n, x, y):
     except Exception as e:
         abort(500, description=str(e))
 
-@app.route('/julia/<int:x>/<int:y>')
-def get_julia(x, y):
+@app.route('/julia/<int:x>/<int:y>/<int:s>')
+def get_julia(x, y, s):
     try:
-        generarImagenJulia(x, y)
+        generarImagenJulia(x, y, s)
         return jsonify({"ok": True})
     except Exception as e:
         abort(500, description=str(e))
 
 @app.route('/julias')
 def get_julias():
+    seen = set()
     julias = []
     if not os.path.exists("img/julia"):
         return jsonify({"julias": julias})
     for f in os.listdir("img/julia"):
         if not f.endswith(".png"):
             continue
-        # Format fitxer: jl_X_Y.png
-        parts = f[3:-4].split("_")  # treu "jl_" i ".png" -> ["X","Y"]
-        if len(parts) == 2:
-            julias.append({"x": int(parts[0]), "y": int(parts[1])})
+        # Format fitxer: jl_X_Y_S.png
+        parts = f[3:-4].split("_")  # treu "jl_" i ".png" -> ["X","Y","S"]
+        if len(parts) == 3:
+            key = (parts[0], parts[1])
+            if key not in seen:
+                seen.add(key)
+                julias.append({"x": int(parts[0]), "y": int(parts[1])})
     return jsonify({"julias": julias})
 
 @app.route('/check/<int:n>/<int:x>/<int:y>')

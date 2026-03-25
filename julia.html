@@ -81,14 +81,21 @@
 <script>
   const API     = 'https://mb.hackerblock.win/mbapi';
   const DST_MAX = 4.0;
-  const IMG_SIZE = 5000;
+
+  // Sector bounds: 0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right
+  const SECTOR_BOUNDS = [
+    { x_min: -2, x_max: 0, y_min: 0, y_max: 2 },
+    { x_min: 0,  x_max: 2, y_min: 0, y_max: 2 },
+    { x_min: -2, x_max: 0, y_min: -2, y_max: 0 },
+    { x_min: 0,  x_max: 2, y_min: -2, y_max: 0 },
+  ];
 
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
   let view = { cx: 0, cy: 0, dst: 4 };
-  let juliaImg = null;
+  let sectors = [null, null, null, null];
   let currentC = null;
-  let loading  = false;
+  let loadingCount = 0;
 
   function resizeCanvas() {
     const cont = document.getElementById('canvas-container');
@@ -97,10 +104,14 @@
     render();
   }
 
+  function hasSectors() {
+    return sectors.some(s => s !== null);
+  }
+
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (!juliaImg) {
+    if (!hasSectors()) {
       ctx.fillStyle = '#0d0d1a';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#1e1e3a';
@@ -111,18 +122,26 @@
       return;
     }
 
-    // Map math coords to pixels
     const scale = Math.min(canvas.width, canvas.height) / view.dst;
     const pcx   = canvas.width / 2;
     const pcy   = canvas.height / 2;
+    const sSize = 2 * scale; // each sector covers 2 math units
 
-    // The julia image covers [-2, 2] x [-2, 2]
-    const imgMathSize = 4;
-    const imgPxSize   = imgMathSize * scale;
-    const imgLeft     = pcx + (-2 - view.cx) * scale;
-    const imgTop      = pcy - (2 - view.cy) * scale;
+    for (let s = 0; s < 4; s++) {
+      const b = SECTOR_BOUNDS[s];
+      const sx = pcx + (b.x_min - view.cx) * scale;
+      const sy = pcy - (b.y_max - view.cy) * scale;
 
-    ctx.drawImage(juliaImg, imgLeft, imgTop, imgPxSize, imgPxSize);
+      if (sectors[s]) {
+        ctx.drawImage(sectors[s], sx, sy, sSize, sSize);
+      } else {
+        ctx.fillStyle = '#0d0d1a';
+        ctx.fillRect(sx, sy, sSize, sSize);
+        ctx.strokeStyle = '#1e1e3a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx, sy, sSize, sSize);
+      }
+    }
     updateStats();
   }
 
@@ -131,7 +150,6 @@
   }
 
   function showLoading(show) {
-    loading = show;
     document.getElementById('loading-overlay').classList.toggle('active', show);
   }
 
@@ -140,41 +158,38 @@
     const cy = parseFloat(document.getElementById('input-cy').value);
     if (isNaN(cx) || isNaN(cy)) return;
 
-    // Use integer encoding matching the server: x and y are raw values passed to endpoint
-    // The julia endpoint takes int x, y — we need to figure out how these map
-    // Looking at julia.py: generarImagenJulia(x, y) uses x, y directly as complex param c
-    // But the endpoint is /julia/<int:x>/<int:y> so we pass integers
-    // Actually the user types float values for c, but the API takes ints
-    // Let's check: the file naming is jl_{x}_{y}.png with int x, y
-    // So the c parameter IS the integer x, y values
-    // We pass them as-is
-
     currentC = { x: cx, y: cy };
     document.getElementById('hcx').textContent = cx;
     document.getElementById('hcy').textContent = cy;
+    view = { cx: 0, cy: 0, dst: 4 };
+    sectors = [null, null, null, null];
+    render();
 
+    loadingCount = 4;
     showLoading(true);
 
-    try {
-      const r = await fetch(`${API}/julia/${cx}/${cy}`);
-      if (!r.ok) throw new Error('Generation failed');
-      await r.json();
-
-      // Load the generated image
-      const img = new Image();
-      img.onload = () => {
-        juliaImg = img;
-        view = { cx: 0, cy: 0, dst: 4 };
-        showLoading(false);
-        render();
-        loadJuliaList(); // refresh the list
-      };
-      img.onerror = () => {
-        showLoading(false);
-      };
-      img.src = `./img/julia/jl_${cx}_${cy}.png?t=${Date.now()}`;
-    } catch (e) {
-      showLoading(false);
+    const t = Date.now();
+    for (let s = 0; s < 4; s++) {
+      fetch(`${API}/julia/${cx}/${cy}/${s}`)
+        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+        .then(() => {
+          const img = new Image();
+          img.onload = () => {
+            sectors[s] = img;
+            render();
+            loadingCount--;
+            if (loadingCount <= 0) { showLoading(false); loadJuliaList(); }
+          };
+          img.onerror = () => {
+            loadingCount--;
+            if (loadingCount <= 0) { showLoading(false); loadJuliaList(); }
+          };
+          img.src = `./img/julia/jl_${cx}_${cy}_${s}.png?t=${t}`;
+        })
+        .catch(() => {
+          loadingCount--;
+          if (loadingCount <= 0) { showLoading(false); loadJuliaList(); }
+        });
     }
   }
 
@@ -184,21 +199,28 @@
     currentC = { x, y };
     document.getElementById('hcx').textContent = x;
     document.getElementById('hcy').textContent = y;
+    view = { cx: 0, cy: 0, dst: 4 };
+    sectors = [null, null, null, null];
+    render();
 
+    loadingCount = 4;
     showLoading(true);
+    const t = Date.now();
 
-    const img = new Image();
-    img.onload = () => {
-      juliaImg = img;
-      view = { cx: 0, cy: 0, dst: 4 };
-      showLoading(false);
-      render();
-      highlightActive(x, y);
-    };
-    img.onerror = () => {
-      showLoading(false);
-    };
-    img.src = `./img/julia/jl_${x}_${y}.png?t=${Date.now()}`;
+    for (let s = 0; s < 4; s++) {
+      const img = new Image();
+      img.onload = () => {
+        sectors[s] = img;
+        render();
+        loadingCount--;
+        if (loadingCount <= 0) { showLoading(false); highlightActive(x, y); }
+      };
+      img.onerror = () => {
+        loadingCount--;
+        if (loadingCount <= 0) { showLoading(false); }
+      };
+      img.src = `./img/julia/jl_${x}_${y}_${s}.png?t=${t}`;
+    }
   }
 
   function highlightActive(x, y) {
@@ -240,7 +262,7 @@
   // Zoom
   document.getElementById('canvas-container').addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (!juliaImg) return;
+    if (!hasSectors()) return;
     const factor = e.deltaY > 0 ? 1.3 : 0.77;
     const newDst = view.dst * factor;
     if (newDst > DST_MAX) return;

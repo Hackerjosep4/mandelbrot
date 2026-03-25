@@ -3,28 +3,31 @@ import os
 from mandelbrot import julia
 
 
-
-
+# Sectors: 0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right
+# (x_min, x_max, y_min, y_max) per sector
+SECTORS = [
+    (-2, 0, 0, 2),
+    (0, 2, 0, 2),
+    (-2, 0, -2, 0),
+    (0, 2, -2, 0),
+]
 
 def validar_imagen(ruta):
-    # Comprobar si el archivo existe
     if not os.path.exists(ruta):
         return False
     try:
-        # Intentar abrir la imagen
         with Image.open(ruta) as img:
-            # Comprobar tamaño exacto
-            return img.size == (10000, 10000)
+            return img.size == (5000, 5000)
     except Exception:
-        # Si no se puede abrir como imagen, también es inválida
         return False
 
-def generarImagenJulia(x, y):
-    ruta = f"img/julia/jl_{x}_{y}.png"
+def generarImagenJulia(x, y, s):
+    ruta = f"img/julia/jl_{x}_{y}_{s}.png"
     os.makedirs("img/julia", exist_ok=True)
     if validar_imagen(ruta):
         return Image.open(ruta), ruta
     else:
-        img = julia(10, 100, -2, 2, -2, 2, x, y)
+        x_min, x_max, y_min, y_max = SECTORS[s]
+        img = julia(5, 100, x_min, x_max, y_min, y_max, x, y)
         img.save(ruta)
         return img, ruta

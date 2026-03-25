@@ -9,7 +9,7 @@ CORS(app)
 
 os.makedirs("img", exist_ok=True)
 
-@app.route('/tile/<int:n>/<int:x>/<int:y>')
+@app.route('/tile/<int:n>/<int(signed=True):x>/<int(signed=True):y>')
 def get_tile(n, x, y):
     try:
         generarImagenSector(x, y, n)
@@ -17,7 +17,7 @@ def get_tile(n, x, y):
     except Exception as e:
         abort(500, description=str(e))
 
-@app.route('/julia/<int:x>/<int:y>/<int:s>')
+@app.route('/julia/<int(signed=True):x>/<int(signed=True):y>/<int:s>')
 def get_julia(x, y, s):
     try:
         generarImagenJulia(x, y, s)

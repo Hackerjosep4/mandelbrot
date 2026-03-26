@@ -29,7 +29,7 @@ def validar_imagen(ruta):
         return False
 
 def generarImagenJulia(x, y, s):
-    ruta = f"img/julia/jl_{x}_{y}_{s}.png"
+    ruta = f"img/julia/jl_{x:g}_{y:g}_{s}.png"
     os.makedirs("img/julia", exist_ok=True)
     if validar_imagen(ruta):
         return Image.open(ruta), ruta

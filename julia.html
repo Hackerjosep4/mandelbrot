@@ -247,7 +247,7 @@
       const r = await fetch(`${API}/julias`);
       if (!r.ok) throw new Error();
       const data = await r.json();
-      const julias = data.julias || [];
+      const julias = (data.julias || []).sort((a, b) => a.x - b.x || a.y - b.y);
 
       if (julias.length === 0) {
         listEl.innerHTML = '<span id="no-julias">no sets generated yet</span>';

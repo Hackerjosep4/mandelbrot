@@ -17,10 +17,10 @@ def get_tile(n, x, y):
     except Exception as e:
         abort(500, description=str(e))
 
-@app.route('/julia/<int(signed=True):x>/<int(signed=True):y>/<int:s>')
+@app.route('/julia/<x>/<y>/<int:s>')
 def get_julia(x, y, s):
     try:
-        generarImagenJulia(x, y, s)
+        generarImagenJulia(float(x), float(y), s)
         return jsonify({"ok": True})
     except Exception as e:
         abort(500, description=str(e))
@@ -40,7 +40,7 @@ def get_julias():
             key = (parts[0], parts[1])
             if key not in seen:
                 seen.add(key)
-                julias.append({"x": int(parts[0]), "y": int(parts[1])})
+                julias.append({"x": float(parts[0]), "y": float(parts[1])})
     return jsonify({"julias": julias})
 
 @app.route('/check/<int:n>/<int:x>/<int:y>')

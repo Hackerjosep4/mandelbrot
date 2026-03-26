@@ -162,8 +162,12 @@
   }
 
   async function generateJulia() {
-    const cx = parseFloat(document.getElementById('input-cx').value);
-    const cy = parseFloat(document.getElementById('input-cy').value);
+    const rawCx = document.getElementById('input-cx').value.replace(',', '.');
+    const rawCy = document.getElementById('input-cy').value.replace(',', '.');
+    document.getElementById('input-cx').value = rawCx;
+    document.getElementById('input-cy').value = rawCy;
+    const cx = parseFloat(rawCx);
+    const cy = parseFloat(rawCy);
     if (isNaN(cx) || isNaN(cy)) return;
 
     currentC = { x: cx, y: cy };

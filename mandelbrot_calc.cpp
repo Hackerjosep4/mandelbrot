@@ -41,8 +41,8 @@ int* mandelbrot_grid(int amplada, int alcada, int max_iter, double x_min, double
 
 int julia_iter(double a, double b, double x, double y, int max_iter)
 {
-    std::complex<double> c(a, b);
-    std::complex<double> z(x, y);
+    std::complex<double> c(x, y);
+    std::complex<double> z(a, b);
 
     int n = 0;
     while (std::abs(z) <= 2.0 && n < max_iter) {

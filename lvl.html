@@ -35,6 +35,8 @@
   .info span { color: var(--accent2); }
   #status { margin-left: auto; font-size: 0.7rem; color: var(--dim); }
   #status span { color: var(--accent2); }
+  button.stop { border-color: var(--accent2); color: var(--accent2); }
+  button.stop:hover { background: var(--accent2); color: var(--bg); }
   .canvas-wrap { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--bg); }
   canvas { image-rendering: pixelated; display: block; border: 1px solid var(--border); }
 </style>
@@ -46,8 +48,7 @@
 <div class="controls">
   <label>LEVEL N</label>
   <input type="number" id="lvl-input" value="1" min="1" max="20">
-  <button id="load-btn" onclick="loadLevel()">▶ Load</button>
-  <button id="stop-btn" onclick="stopLoading()" disabled>⏹ Stop</button>
+  <button id="action-btn" onclick="handleAction()">▶ Load</button>
   <button onclick="location.href='./'">← Return</button>
   <div class="info">existing files: <span id="file-count">—</span></div>
   <div id="status">—</div>
@@ -62,6 +63,7 @@
 
   let currentN  = null;
   let abortFlag = false;
+  let isLoading = false;
 
   // Carregar el compte de fitxers
   fetch('./count.php').then(r => r.json()).then(data => {
@@ -78,8 +80,12 @@
     document.getElementById('status').innerHTML = html;
   }
 
-  function stopLoading() {
-    abortFlag = true;
+  function handleAction() {
+    if (isLoading) {
+      abortFlag = true;
+    } else {
+      loadLevel();
+    }
   }
 
   async function loadLevel() {
@@ -92,10 +98,10 @@
     abortFlag = false;
     currentN = n;
 
-    const btn = document.getElementById('load-btn');
-    const stopBtn = document.getElementById('stop-btn');
-    btn.disabled = true;
-    stopBtn.disabled = false;
+    isLoading = true;
+    const btn = document.getElementById('action-btn');
+    btn.textContent = '⏹ Stop';
+    btn.classList.add('stop');
 
     const total  = Math.pow(2, n);
     const sizePx = getCanvasSize();
@@ -121,14 +127,12 @@
       tiles = data.tiles;
     } catch {
       setStatus('<span>error fetching level</span>');
-      btn.disabled = false;
-      stopBtn.disabled = true;
+      finishLoad();
       return;
     }
 
     if (abortFlag || currentN !== n) { 
-      btn.disabled = false; 
-      stopBtn.disabled = true;
+      finishLoad();
       return; 
     }
 
@@ -152,8 +156,7 @@
     }
 
     if (abortFlag || currentN !== n) { 
-      btn.disabled = false; 
-      stopBtn.disabled = true;
+      finishLoad();
       return; 
     }
 
@@ -180,8 +183,14 @@
 
     const cancelled = abortFlag || currentN !== n;
     setStatus(`found: <span>${tiles.length}/${total2}</span> &nbsp; loaded: <span>${loaded}/${tiles.length}</span>${cancelled ? ' &nbsp; <span style="color:var(--dim)">cancelled</span>' : ' &nbsp; ✓'}`);
-    btn.disabled = false;
-    stopBtn.disabled = true;
+    finishLoad();
+  }
+
+  function finishLoad() {
+    isLoading = false;
+    const btn = document.getElementById('action-btn');
+    btn.textContent = '▶ Load';
+    btn.classList.remove('stop');
   }
 </script>
 </body>

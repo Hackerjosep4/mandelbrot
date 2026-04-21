@@ -313,6 +313,16 @@
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
   loadJuliaList();
+
+  // Read URL parameters and trigger generation automatically
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlX = urlParams.get('x');
+  const urlY = urlParams.get('y');
+  if (urlX !== null && urlY !== null) {
+    document.getElementById('input-cx').value = urlX;
+    document.getElementById('input-cy').value = urlY;
+    generateJulia();
+  }
 </script>
 </body>
 </html>

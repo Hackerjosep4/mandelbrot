@@ -34,6 +34,14 @@
   button:hover { background: var(--accent); color: var(--bg); }
   .hint { font-size: 0.65rem; color: var(--dim); line-height: 1.6; }
   .hint b { color: var(--text); }
+  #context-menu { position: absolute; background: var(--surface); border: 1px solid var(--accent); padding: 10px; z-index: 100; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+  #context-menu.hidden { display: none; }
+  #context-menu .title { font-family: 'Orbitron', monospace; font-size: 0.65rem; color: var(--accent2); text-align: center; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  #context-menu .cm-coords { font-size: 0.65rem; color: var(--text); font-family: 'Share Tech Mono', monospace; }
+  #context-menu button { padding: 4px 8px; font-size: 0.65rem; border-color: var(--dim); color: var(--text); }
+  #context-menu button:hover { border-color: var(--accent); color: var(--bg); background: var(--accent); }
+  #cm-go { border-color: var(--accent) !important; color: var(--accent) !important; }
+  #cm-go:hover { background: var(--accent) !important; color: var(--bg) !important; }
 </style>
 </head>
 <body>
@@ -66,6 +74,14 @@
     <button onclick="location.href='./julia.html'">✦ Julia Sets</button>
   </div>
 </div>
+
+<div id="context-menu" class="hidden">
+  <div class="title">Generate Julia Set</div>
+  <div class="cm-coords">x: <span id="cm-x"></span><br>y: <span id="cm-y"></span></div>
+  <button id="cm-copy">Copy Coordinates</button>
+  <button id="cm-go">Open in Julia Explorer</button>
+</div>
+
 <script>
   const API     = 'https://mb.hackerblock.win/mbapi';
   const DST_MAX = 3.0;
@@ -256,6 +272,40 @@
   });
   cont.addEventListener('mouseup',    () => { drag = null; });
   cont.addEventListener('mouseleave', () => { drag = null; });
+
+  const ctxMenu = document.getElementById('context-menu');
+  let ctxMathX = 0, ctxMathY = 0;
+
+  cont.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const rect  = canvas.getBoundingClientRect();
+    const scale = Math.min(canvas.width, canvas.height) / view.dst;
+    ctxMathX = view.cx + (e.clientX - rect.left  - canvas.width  / 2) / scale;
+    ctxMathY = view.cy - (e.clientY - rect.top   - canvas.height / 2) / scale;
+    
+    document.getElementById('cm-x').textContent = ctxMathX.toFixed(6);
+    document.getElementById('cm-y').textContent = ctxMathY.toFixed(6);
+    
+    ctxMenu.style.left = `${e.clientX}px`;
+    ctxMenu.style.top = `${e.clientY}px`;
+    ctxMenu.classList.remove('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!ctxMenu.contains(e.target)) {
+      ctxMenu.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('cm-copy').addEventListener('click', () => {
+    navigator.clipboard.writeText(`${ctxMathX}, ${ctxMathY}`);
+    ctxMenu.classList.add('hidden');
+  });
+
+  document.getElementById('cm-go').addEventListener('click', () => {
+    window.open(`./julia.html?x=${ctxMathX}&y=${ctxMathY}`, '_blank');
+    ctxMenu.classList.add('hidden');
+  });
 
   function changeQuality(delta) {
     quality = Math.max(0, Math.min(4, quality + delta));

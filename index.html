@@ -298,12 +298,12 @@
   });
 
   document.getElementById('cm-copy').addEventListener('click', () => {
-    navigator.clipboard.writeText(`${ctxMathX}, ${ctxMathY}`);
+    navigator.clipboard.writeText(`${ctxMathX.toFixed(6)}, ${ctxMathY.toFixed(6)}`);
     ctxMenu.classList.add('hidden');
   });
 
   document.getElementById('cm-go').addEventListener('click', () => {
-    window.open(`./julia.html?x=${ctxMathX}&y=${ctxMathY}`, '_blank');
+    window.open(`./julia.html?x=${ctxMathX.toFixed(6)}&y=${ctxMathY.toFixed(6)}`, '_blank');
     ctxMenu.classList.add('hidden');
   });
 
